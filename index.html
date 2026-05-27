@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ráp Phách Và Xuất Bảng Điểm</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap');
 
@@ -292,7 +292,7 @@
   <div class="header-inner">
     <div class="badge">Ráp Phách Client-side</div>
     <h1>Ráp phách, ghép điểm và xuất 2 bảng Excel</h1>
-    <p>Dùng danh sách sinh viên dự thi, ảnh bảng đối chiếu số báo danh - phách và danh sách chấm thi của Bộ môn để tạo `Rapphach_PhongKTBDCLGD.xlsx` và `Bangdiemsaurapphach.xlsx` ngay trên trình duyệt.</p>
+    <p>Dùng danh sách sinh viên dự thi, bảng đối chiếu số báo danh - phách dạng Word/Excel và danh sách chấm thi của Bộ môn để tạo `Rapphach_PhongKTBDCLGD.xlsx` và `Bangdiemsaurapphach.xlsx` ngay trên trình duyệt.</p>
   </div>
 </header>
 
@@ -311,12 +311,11 @@
         </div>
 
         <div class="field">
-          <label for="mapping-image">File 2. Bandoichieuphach dạng ảnh</label>
+          <label for="mapping-file">File 2. Bandoichieuphach dạng Word hoặc Excel</label>
           <div class="file-box">
-            <input id="mapping-image" type="file" accept="image/*">
-            <div id="mapping-meta" class="file-meta">Ứng dụng sẽ OCR bảng ảnh để lấy `STT - SBD - Phách`.</div>
-            <div class="progress"><div id="ocr-bar"></div></div>
-            <div id="ocr-text" class="mini" style="margin-top:8px;">OCR chưa chạy.</div>
+            <input id="mapping-file" type="file" accept=".xlsx,.xls,.docx,.doc">
+            <div id="mapping-meta" class="file-meta">Chưa nạp file. Hỗ trợ Excel hoặc Word `.docx`; file `.doc` nên lưu lại thành `.docx` nếu trình duyệt không đọc được.</div>
+            <div id="mapping-read-text" class="mini" style="margin-top:8px;">Chưa đọc bảng đối chiếu.</div>
           </div>
         </div>
 
@@ -329,21 +328,21 @@
         </div>
 
         <div class="row-actions">
-          <button id="btn-ocr" class="btn-primary" type="button">OCR bảng đối chiếu</button>
+          <button id="btn-read-mapping" class="btn-primary" type="button">Đọc bảng đối chiếu</button>
           <button id="btn-merge" class="btn-gold" type="button">Ráp phách và ghép điểm</button>
           <button id="btn-reset" class="btn-danger" type="button">Làm mới</button>
         </div>
       </div>
 
       <div class="card">
-        <h2 class="section-title">2. Văn bản OCR có thể chỉnh tay</h2>
+        <h2 class="section-title">2. Nội dung đối chiếu có thể chỉnh tay</h2>
         <div class="field">
           <label for="mapping-text">Nội dung đối chiếu</label>
-          <textarea id="mapping-text" placeholder="Sau khi OCR, dữ liệu sẽ xuất hiện tại đây. Có thể sửa lại từng dòng theo dạng: 1 0001 2"></textarea>
+          <textarea id="mapping-text" placeholder="Sau khi đọc Word/Excel, dữ liệu sẽ xuất hiện tại đây. Có thể sửa lại từng dòng theo dạng: 1 0001 2"></textarea>
           <div class="hint">Mỗi dòng nên có đủ 3 giá trị theo thứ tự `STT SBD Phách`. Ví dụ: `1 0001 2`.</div>
         </div>
         <div class="row-actions">
-          <button id="btn-parse-text" class="btn-secondary" type="button">Đọc lại từ văn bản OCR</button>
+          <button id="btn-parse-text" class="btn-secondary" type="button">Đọc lại từ văn bản</button>
         </div>
       </div>
 
@@ -451,7 +450,7 @@ const state = {
 
 const els = {
   rosterFile: document.getElementById('roster-file'),
-  mappingImage: document.getElementById('mapping-image'),
+  mappingFile: document.getElementById('mapping-file'),
   scoresFile: document.getElementById('scores-file'),
   rosterMeta: document.getElementById('roster-meta'),
   mappingMeta: document.getElementById('mapping-meta'),
@@ -460,13 +459,12 @@ const els = {
   previewBody: document.getElementById('preview-body'),
   statusBox: document.getElementById('status-box'),
   metaPills: document.getElementById('meta-pills'),
-  ocrBar: document.getElementById('ocr-bar'),
-  ocrText: document.getElementById('ocr-text'),
+  mappingReadText: document.getElementById('mapping-read-text'),
   statRoster: document.getElementById('stat-roster'),
   statMap: document.getElementById('stat-map'),
   statScore: document.getElementById('stat-score'),
   statMerged: document.getElementById('stat-merged'),
-  btnOcr: document.getElementById('btn-ocr'),
+  btnReadMapping: document.getElementById('btn-read-mapping'),
   btnMerge: document.getElementById('btn-merge'),
   btnParseText: document.getElementById('btn-parse-text'),
   btnExportOffice: document.getElementById('btn-export-office'),
@@ -501,12 +499,12 @@ els.scoresFile.addEventListener('change', async (e) => {
   }
 });
 
-els.btnOcr.addEventListener('click', handleOcrImage);
+els.btnReadMapping.addEventListener('click', handleMappingFile);
 els.btnParseText.addEventListener('click', () => {
   try {
     state.mapping = parseMappingText(els.mappingText.value);
     updateUi();
-    setStatus(`Đã đọc ${state.mapping.rows.length} dòng đối chiếu từ văn bản OCR.`, 'ok');
+    setStatus(`Đã đọc ${state.mapping.rows.length} dòng đối chiếu từ văn bản.`, 'ok');
   } catch (err) {
     setStatus(err.message, 'bad');
   }
@@ -683,38 +681,72 @@ function parseScoreBlock(row, start, target) {
   });
 }
 
-async function handleOcrImage() {
-  const file = els.mappingImage.files[0];
+async function handleMappingFile() {
+  const file = els.mappingFile.files[0];
   if (!file) {
-    setStatus('Chưa chọn ảnh bảng đối chiếu phách.', 'warn');
+    setStatus('Chưa chọn file bảng đối chiếu phách.', 'warn');
     return;
   }
 
-  els.btnOcr.disabled = true;
-  els.btnOcr.classList.add('btn-disabled');
-  els.ocrBar.style.width = '0%';
-  els.ocrText.textContent = 'Đang OCR ảnh...';
+  els.btnReadMapping.disabled = true;
+  els.btnReadMapping.classList.add('btn-disabled');
+  els.mappingReadText.textContent = 'Đang đọc bảng đối chiếu...';
 
   try {
-    const result = await Tesseract.recognize(file, 'eng', {
-      logger: ({ status, progress }) => {
-        const pct = Math.max(0, Math.min(100, Math.round((progress || 0) * 100)));
-        els.ocrBar.style.width = `${pct}%`;
-        els.ocrText.textContent = `${status} ${pct}%`;
-      }
-    });
+    const ext = file.name.split('.').pop().toLowerCase();
+    const text = ext === 'xlsx' || ext === 'xls'
+      ? await readMappingExcelText(file)
+      : await readMappingWordText(file);
 
-    els.mappingText.value = result.data.text.trim();
-    state.mapping = parseMappingText(result.data.text);
-    els.mappingMeta.textContent = `${file.name} | OCR được ${state.mapping.rows.length} dòng đối chiếu`;
+    els.mappingText.value = text.trim();
+    state.mapping = parseMappingText(text);
+    els.mappingMeta.textContent = `${file.name} | Đọc được ${state.mapping.rows.length} dòng đối chiếu`;
+    els.mappingReadText.textContent = 'Đã đọc xong bảng đối chiếu.';
     updateUi();
-    setStatus(`OCR hoàn tất và nhận diện được ${state.mapping.rows.length} dòng SBD - Phách.`, 'ok');
+    setStatus(`Đã nhận diện ${state.mapping.rows.length} dòng SBD - Phách.`, 'ok');
   } catch (err) {
-    setStatus(`OCR thất bại: ${err.message}`, 'bad');
+    setStatus(`Không đọc được bảng đối chiếu: ${err.message}`, 'bad');
   } finally {
-    els.btnOcr.disabled = false;
-    els.btnOcr.classList.remove('btn-disabled');
+    els.btnReadMapping.disabled = false;
+    els.btnReadMapping.classList.remove('btn-disabled');
   }
+}
+
+async function readMappingExcelText(file) {
+  const wb = await readWorkbook(file);
+  const rows = firstSheetRows(wb);
+  const headerIndex = rows.findIndex((row) => {
+    const vals = row.map(normalizeText);
+    return vals.includes('STT') && vals.includes('SBD') && vals.some((v) => v.includes('PHACH'));
+  });
+
+  if (headerIndex >= 0) {
+    const header = rows[headerIndex].map(normalizeText);
+    const idx = {
+      stt: header.findIndex((v) => v === 'STT'),
+      sbd: header.findIndex((v) => v === 'SBD'),
+      phach: header.findIndex((v) => v.includes('PHACH'))
+    };
+    return rows
+      .slice(headerIndex + 1)
+      .map((row) => [row[idx.stt], row[idx.sbd], row[idx.phach]].map(toDisplay).join(' '))
+      .join('\n');
+  }
+
+  return rows.map((row) => row.map(toDisplay).filter(Boolean).join(' ')).join('\n');
+}
+
+async function readMappingWordText(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'doc') {
+    throw new Error('Trình duyệt không đọc ổn định file .doc cũ. Hãy mở bằng Word và Save As thành .docx hoặc Excel.');
+  }
+  if (!window.mammoth) {
+    throw new Error('Chưa tải được thư viện đọc Word. Kiểm tra kết nối mạng rồi thử lại.');
+  }
+  const buffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+  return result.value || '';
 }
 
 function parseMappingText(text) {
@@ -731,9 +763,21 @@ function parseMappingText(text) {
     rows.push({ stt, sbd, phach });
   }
 
+  if (!rows.length) {
+    const start = raw.search(/STT/i);
+    const body = start >= 0 ? raw.slice(start) : raw;
+    const tokens = (body.match(/[0O]?\d+/g) || []).map((token) => token.replace(/O/g, '0'));
+    for (let i = 0; i + 2 < tokens.length; i += 3) {
+      const [stt, sbdRaw, phach] = tokens.slice(i, i + 3);
+      const sbd = toSbd(sbdRaw);
+      if (!/^\d{1,3}$/.test(stt) || !/^\d{4,}$/.test(sbd) || !/^\d{1,4}$/.test(phach)) continue;
+      rows.push({ stt, sbd, phach });
+    }
+  }
+
   const uniqueRows = uniqueBy(rows, (row) => `${row.sbd}-${row.phach}`);
   if (!uniqueRows.length) {
-    throw new Error('Không đọc được dữ liệu đối chiếu từ văn bản OCR. Hãy sửa tay mỗi dòng theo dạng: 1 0001 2');
+    throw new Error('Không đọc được dữ liệu đối chiếu. Hãy sửa tay mỗi dòng theo dạng: 1 0001 2');
   }
 
   return {
@@ -982,14 +1026,13 @@ function resetAll() {
   state.scores = null;
   state.merged = [];
   els.rosterFile.value = '';
-  els.mappingImage.value = '';
+  els.mappingFile.value = '';
   els.scoresFile.value = '';
   els.mappingText.value = '';
   els.rosterMeta.textContent = 'Chưa nạp file.';
-  els.mappingMeta.textContent = 'Ứng dụng sẽ OCR bảng ảnh để lấy `STT - SBD - Phách`.';
+  els.mappingMeta.textContent = 'Chưa nạp file. Hỗ trợ Excel hoặc Word `.docx`; file `.doc` nên lưu lại thành `.docx` nếu trình duyệt không đọc được.';
   els.scoresMeta.textContent = 'Chưa nạp file.';
-  els.ocrBar.style.width = '0%';
-  els.ocrText.textContent = 'OCR chưa chạy.';
+  els.mappingReadText.textContent = 'Chưa đọc bảng đối chiếu.';
   setStatus('Đã làm mới toàn bộ dữ liệu.', 'ok');
   updateUi();
 }
