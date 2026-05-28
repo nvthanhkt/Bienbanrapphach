@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ráp Phách Và Xuất Bảng Điểm</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap');
@@ -923,244 +924,161 @@ function formatSignDate() {
   return `Huế, Ngày ${String(date.getDate()).padStart(2, '0')} tháng ${String(date.getMonth() + 1).padStart(2, '0')} năm ${date.getFullYear()}`;
 }
 
-// Helper: tạo đối tượng border thin cho tất cả 4 cạnh
-function thinBorder() {
-  return {
-    top: { style: 'thin' },
-    bottom: { style: 'thin' },
-    left: { style: 'thin' },
-    right: { style: 'thin' }
-  };
+// ============================================================
+// XUẤT EXCEL BẰNG EXCELJS (hỗ trợ style đầy đủ)
+// ============================================================
+
+const FONT_BASE = { name: 'Times New Roman', size: 12 };
+const THIN = { style: 'thin' };
+const THIN_BORDER = { top: THIN, left: THIN, bottom: THIN, right: THIN };
+
+function cell(ws, addr) {
+  return ws.getCell(addr);
 }
 
-// Helper: áp dụng style cho 1 cell - luôn dùng Times New Roman 12pt làm mặc định
-function styleCell(ws, addr, opts) {
-  if (!ws[addr]) ws[addr] = { t: 's', v: '' };
-  const c = ws[addr];
-  if (!c.s) c.s = {};
-
-  c.s.font = c.s.font || {};
-  c.s.font.name   = opts.name   !== undefined ? opts.name   : 'Times New Roman';
-  c.s.font.sz     = opts.sz     !== undefined ? opts.sz     : 12;
-  if (opts.bold   !== undefined) c.s.font.bold   = opts.bold;
-  if (opts.italic !== undefined) c.s.font.italic = opts.italic;
-
-  if (opts.halign !== undefined) {
-    c.s.alignment = c.s.alignment || {};
-    c.s.alignment.horizontal = opts.halign;
-    c.s.alignment.wrapText = opts.wrap !== undefined ? opts.wrap : false;
+function sc(ws, addr, opts) {
+  const c = ws.getCell(addr);
+  c.font = {
+    name: opts.name || 'Times New Roman',
+    size: opts.size || 12,
+    bold:   opts.bold   || false,
+    italic: opts.italic || false,
+  };
+  if (opts.halign) {
+    c.alignment = { horizontal: opts.halign, wrapText: !!opts.wrap };
   }
   if (opts.border) {
-    c.s.border = opts.border;
+    c.border = opts.border;
+  }
+  if (opts.value !== undefined) {
+    c.value = opts.value;
   }
 }
 
-function buildSheet(kind) {
+async function buildAndSave(kind) {
   const meta = collectMeta();
   const hocKy = document.getElementById('hoc-ky').value.trim() || '2';
   const namHoc = document.getElementById('nam-hoc').value.trim() || '2025-2026';
   const signDate = formatSignDate();
-
   const n = state.merged.length;
-  const dataStartRow = 13; // hàng bắt đầu dữ liệu (1-based)
-  const footerRow = dataStartRow + n + 1; // 1 hàng trống sau dữ liệu
+  const dataStart = 13;
+  const footerRow = dataStart + n + 1;
   const lastRow = footerRow + 1;
 
-  // Tạo worksheet rỗng, gán từng ô trực tiếp (tránh lỗi offset của aoa_to_sheet)
-  const ws = {};
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Bangdiemsaurapphach');
 
-  // Helper gán ô: setCell(ws, 'A2', 's', 'text value')
-  // type: 's'=string, 'n'=number
-  function setCell(addr, type, value) {
-    if (value === null || value === undefined || value === '') {
-      ws[addr] = { t: 's', v: '' };
-    } else if (type === 'n' && value !== '' && !isNaN(Number(value))) {
-      ws[addr] = { t: 'n', v: Number(value) };
-    } else {
-      ws[addr] = { t: 's', v: String(value) };
-    }
-  }
-
-  // === NỘI DUNG TỪNG Ô (đúng hàng 1-based) ===
-  setCell('A2', 's', 'ĐẠI HỌC HUẾ');
-  setCell('D2', 's', 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM');
-  setCell('A3', 's', 'TRƯỜNG ĐẠI HỌC Y - DƯỢC');
-  setCell('D3', 's', 'Độc lập - Tự do - Hạnh phúc');
-  setCell('A5', 's', 'BẢNG ĐIỂM THI KẾT THÚC HỌC PHẦN');
-  setCell('A6', 's', `Học kỳ: ${hocKy} ; Năm học: ${namHoc}`);
-  setCell('C7', 's', `Hình thức thi: ${meta['Hình thức thi'] || ''}`);
-  setCell('A8', 's', `Tên học phần: ${meta['Tên học phần'] || ''}`);
-  setCell('A9', 's', `Mã học phần: ${meta['Mã học phần'] || ''}`);
-  setCell('D9', 's', `Ngày thi: ${meta['Ngày thi'] || ''}`);
-  setCell('A10', 's', `Phòng thi: ${meta['Phòng thi'] || ''}`);
-  setCell('D10', 's', `Hệ: ${meta['Hệ'] || ''}`);
-  setCell('A11', 's', 'Stt');
-  setCell('B11', 's', 'Mã SV');
-  setCell('C11', 's', 'Họ tên sinh viên');
-  setCell('D11', 's', 'Mã lớp');
-  setCell('E11', 's', 'Mã phách');
-  setCell('F11', 's', 'Điểm');
-  // Hàng 12: ô trống (merge dưới header)
-  ['A12','B12','C12','D12','E12','F12'].forEach(a => setCell(a, 's', ''));
-
-  // Dữ liệu từ hàng 13
-  state.merged.forEach((item, idx) => {
-    const r = dataStartRow + idx;
-    const sttVal = parseInt(item.stt) || item.stt;
-    const phachVal = item.phach !== '' ? (parseInt(item.phach) || item.phach) : '';
-    const diemVal = item.diem;
-    setCell(`A${r}`, 'n', sttVal);
-    setCell(`B${r}`, 's', item.maSv);
-    setCell(`C${r}`, 's', item.hoTen);
-    setCell(`D${r}`, 's', item.maLop);
-    setCell(`E${r}`, 'n', phachVal);
-    if (diemVal !== '' && !isNaN(Number(diemVal))) {
-      ws[`F${r}`] = { t: 'n', v: Number(diemVal) };
-    } else {
-      setCell(`F${r}`, 's', diemVal);
-    }
-  });
-
-  // Footer
-  if (kind === 'office') {
-    setCell(`A${footerRow}`, 's', document.getElementById('rap1').value.trim() || 'CB ráp phách 1');
-    setCell(`C${footerRow}`, 's', document.getElementById('rap2').value.trim() || 'CB ráp phách 2');
-    setCell(`D${footerRow}`, 's', signDate);
-    setCell(`A${lastRow}`, 's', '\u00a0\u00a0 \u00a0\u00a0\u00a0(Ký, ghi rõ họ tên)');
-    setCell(`C${lastRow}`, 's', '(Ký, ghi rõ họ tên)');
-    setCell(`D${lastRow}`, 's', 'Lãnh đạo P. KTBĐCLGD');
-  } else {
-    setCell(`A${footerRow}`, 's', '\u00a0\u00a0 \u00a0\u00a0\u00a0' + (document.getElementById('cham1').value.trim() || 'Cán bộ chấm thi 1'));
-    setCell(`C${footerRow}`, 's', document.getElementById('cham2').value.trim() || 'Cán bộ chấm thi 2');
-    setCell(`D${footerRow}`, 's', signDate);
-    setCell(`A${lastRow}`, 's', '\u00a0\u00a0 \u00a0\u00a0\u00a0(Ký, ghi rõ họ tên)');
-    setCell(`C${lastRow}`, 's', '(Ký, ghi rõ họ tên)');
-    setCell(`D${lastRow}`, 's', '\u00a0\u00a0' + (document.getElementById('don-vi-ky').value.trim() || 'Trưởng Khoa/ Bộ môn'));
-  }
-
-  // Bắt buộc phải set !ref cho worksheet tự tạo
-  ws['!ref'] = `A1:F${lastRow}`;
-
-  // --- Column widths (khớp mẫu) ---
-  ws['!cols'] = [
-    { wch: 14.71 },  // A
-    { wch: 11.86 },  // B
-    { wch: 23.14 },  // C
-    { wch: 18.29 },  // D
-    { wch: 12.43 },  // E
-    { wch: 13.14 }   // F
+  // Độ rộng cột (units = ký tự)
+  ws.columns = [
+    { width: 7.5  }, // A
+    { width: 12.5 }, // B
+    { width: 26   }, // C
+    { width: 22   }, // D
+    { width: 10   }, // E
+    { width: 10   }, // F
   ];
 
-  // --- Row heights (index 0-based = hàng 1-based - 1) ---
-  ws['!rows'] = [];
+  // Chiều cao hàng
   for (let r = 2; r <= lastRow; r++) {
-    ws['!rows'][r - 1] = { hpt: 15.75 };
+    ws.getRow(r).height = 15.75;
   }
 
-  // --- Merge cells (khớp chính xác mẫu) ---
-  ws['!merges'] = [
-    XLSX.utils.decode_range('A2:C2'),
-    XLSX.utils.decode_range('D2:F2'),
-    XLSX.utils.decode_range('A3:C3'),
-    XLSX.utils.decode_range('D3:F3'),
-    XLSX.utils.decode_range('A5:F5'),
-    XLSX.utils.decode_range('A6:F6'),
-    XLSX.utils.decode_range('C7:D7'),
-    XLSX.utils.decode_range('A8:F8'),
-    XLSX.utils.decode_range('A9:C9'),
-    XLSX.utils.decode_range('D9:F9'),
-    XLSX.utils.decode_range('A10:C10'),
-    XLSX.utils.decode_range('D10:E10'),
-    XLSX.utils.decode_range('A11:A12'),
-    XLSX.utils.decode_range('B11:B12'),
-    XLSX.utils.decode_range('C11:C12'),
-    XLSX.utils.decode_range('D11:D12'),
-    XLSX.utils.decode_range('E11:E12'),
-    XLSX.utils.decode_range('F11:F12'),
-    XLSX.utils.decode_range(`A${footerRow}:B${footerRow}`),
-    XLSX.utils.decode_range(`A${lastRow}:B${lastRow}`),
-    XLSX.utils.decode_range(`D${footerRow}:F${footerRow}`),
-    XLSX.utils.decode_range(`D${lastRow}:F${lastRow}`)
-  ];
+  // ── Nội dung & style từng ô ──────────────────────────────
 
-  // --- Style cells ---
-  // Hàng 2: bold, center, Times New Roman 12
-  styleCell(ws, 'A2', { bold: true, italic: false, halign: 'center' });
-  styleCell(ws, 'D2', { bold: true, italic: false, halign: 'center' });
+  // Hàng 2
+  sc(ws,'A2',{ value:'ĐẠI HỌC HUẾ',                         bold:true,  halign:'center' });
+  sc(ws,'D2',{ value:'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM',  bold:true,  halign:'center' });
   // Hàng 3
-  styleCell(ws, 'A3', { bold: true, italic: false, halign: 'center' });
-  styleCell(ws, 'D3', { bold: true, italic: false, halign: 'center' });
+  sc(ws,'A3',{ value:'TRƯỜNG ĐẠI HỌC Y - DƯỢC',              bold:true,  halign:'center' });
+  sc(ws,'D3',{ value:'Độc lập - Tự do - Hạnh phúc',          bold:true,  halign:'center' });
   // Hàng 5
-  styleCell(ws, 'A5', { bold: true, italic: false, halign: 'center' });
+  sc(ws,'A5',{ value:'BẢNG ĐIỂM THI KẾT THÚC HỌC PHẦN',     bold:true,  halign:'center' });
   // Hàng 6
-  styleCell(ws, 'A6', { bold: true, italic: false, halign: 'center' });
+  sc(ws,'A6',{ value:`Học kỳ: ${hocKy} ; Năm học: ${namHoc}`, bold:true, halign:'center' });
   // Hàng 7
-  styleCell(ws, 'C7', { bold: true, italic: false, halign: 'center' });
+  sc(ws,'C7',{ value:`Hình thức thi: ${meta['Hình thức thi']||''}`, bold:true, halign:'center' });
   // Hàng 8
-  styleCell(ws, 'A8', { bold: true, italic: false, halign: 'left' });
+  sc(ws,'A8',{ value:`Tên học phần: ${meta['Tên học phần']||''}`,   bold:true, halign:'left' });
   // Hàng 9
-  styleCell(ws, 'A9', { bold: true, italic: false, halign: 'left' });
-  styleCell(ws, 'D9', { bold: true, italic: false, halign: 'left' });
+  sc(ws,'A9',{ value:`Mã học phần: ${meta['Mã học phần']||''}`,     bold:true, halign:'left' });
+  sc(ws,'D9',{ value:`Ngày thi: ${meta['Ngày thi']||''}`,            bold:true, halign:'left' });
   // Hàng 10
-  styleCell(ws, 'A10', { bold: true, italic: false, halign: 'left' });
-  styleCell(ws, 'D10', { bold: true, italic: false, halign: 'left' });
+  sc(ws,'A10',{ value:`Phòng thi: ${meta['Phòng thi']||''}`,         bold:true, halign:'left' });
+  sc(ws,'D10',{ value:`Hệ: ${meta['Hệ']||''}`,                       bold:true, halign:'left' });
 
-  // Header bảng (hàng 11): bold, center, border thin
-  ['A11','B11','C11','D11','E11','F11'].forEach(addr => {
-    styleCell(ws, addr, { bold: true, italic: false, halign: 'center', border: thinBorder() });
-  });
-  // Hàng 12 (merge bên dưới header, chỉ có border trái/phải/dưới)
-  ['A12','B12','C12','D12','E12','F12'].forEach(addr => {
-    styleCell(ws, addr, {
-      bold: false, italic: false,
-      border: {
-        top:    { style: undefined },
-        bottom: { style: 'thin' },
-        left:   { style: 'thin' },
-        right:  { style: 'thin' }
-      }
-    });
+  // Header bảng hàng 11 (merge xuống 12)
+  const headers = [
+    ['A11','Stt'], ['B11','Mã SV'], ['C11','Họ tên sinh viên'],
+    ['D11','Mã lớp'], ['E11','Mã phách'], ['F11','Điểm']
+  ];
+  headers.forEach(([addr, val]) => {
+    sc(ws, addr, { value: val, bold: true, halign: 'center', border: THIN_BORDER });
   });
 
-  // Dữ liệu: border thin; STT bold+center; các cột còn lại không bold
-  for (let idx = 0; idx < n; idx++) {
-    const rowNum = dataStartRow + idx;
-    const cols = ['A','B','C','D','E','F'];
-    cols.forEach((col, ci) => {
-      const addr = col + rowNum;
-      const isStt   = ci === 0;  // cột A: STT — bold, center
-      const isPhach = ci === 4;  // cột E: Mã phách — center
-      styleCell(ws, addr, {
-        bold:   isStt,
-        italic: false,
-        halign: (isStt || isPhach) ? 'center' : undefined,
-        border: thinBorder()
-      });
-    });
-  }
+  // Dữ liệu
+  state.merged.forEach((item, idx) => {
+    const r = dataStart + idx;
+    const sttNum = parseInt(item.stt) || item.stt;
+    const phachNum = item.phach !== '' ? (parseInt(item.phach) || item.phach) : '';
+    const diemNum = item.diem !== '' && !isNaN(Number(item.diem)) ? Number(item.diem) : (item.diem || '');
+
+    sc(ws,`A${r}`,{ value: sttNum,    bold:true,  halign:'center', border:THIN_BORDER });
+    sc(ws,`B${r}`,{ value: item.maSv, bold:false,                  border:THIN_BORDER });
+    sc(ws,`C${r}`,{ value: item.hoTen,bold:false,                  border:THIN_BORDER });
+    sc(ws,`D${r}`,{ value: item.maLop,bold:false,                  border:THIN_BORDER });
+    sc(ws,`E${r}`,{ value: phachNum,  bold:false, halign:'center', border:THIN_BORDER });
+    sc(ws,`F${r}`,{ value: diemNum,   bold:false,                  border:THIN_BORDER });
+  });
 
   // Footer
   if (kind === 'office') {
-    // File 4: CB ráp phách 1 — bold, center
-    styleCell(ws, `A${footerRow}`,   { bold: true,  italic: false, halign: 'center' });
-    styleCell(ws, `C${footerRow}`,   { bold: true,  italic: false, halign: 'center' });
-    styleCell(ws, `D${footerRow}`,   { bold: false, italic: false, halign: 'center' });
-    // (Ký, ghi rõ họ tên) — file 4: A không italic, C italic, D bold
-    styleCell(ws, `A${lastRow}`, { bold: false, italic: false, halign: 'left' });
-    styleCell(ws, `C${lastRow}`, { bold: false, italic: true,  halign: 'center' });
-    styleCell(ws, `D${lastRow}`, { bold: true,  italic: false, halign: 'center' });
+    const rap1 = document.getElementById('rap1').value.trim() || 'CB ráp phách 1';
+    const rap2 = document.getElementById('rap2').value.trim() || 'CB ráp phách 2';
+    sc(ws,`A${footerRow}`, { value: rap1,     bold:true,  halign:'center' });
+    sc(ws,`C${footerRow}`, { value: rap2,     bold:true,  halign:'center' });
+    sc(ws,`D${footerRow}`, { value: signDate, bold:false, halign:'center' });
+    sc(ws,`A${lastRow}`,   { value: '\u00a0\u00a0 \u00a0\u00a0\u00a0(Ký, ghi rõ họ tên)', bold:false, italic:false, halign:'left' });
+    sc(ws,`C${lastRow}`,   { value: '(Ký, ghi rõ họ tên)', bold:false, italic:true,  halign:'center' });
+    sc(ws,`D${lastRow}`,   { value: 'Lãnh đạo P. KTBĐCLGD',bold:true, italic:false, halign:'center' });
   } else {
-    // File 5: Cán bộ chấm thi 1 — không bold (A), có bold (C)
-    styleCell(ws, `A${footerRow}`,   { bold: false, italic: false, halign: 'left' });
-    styleCell(ws, `C${footerRow}`,   { bold: true,  italic: false, halign: 'center' });
-    styleCell(ws, `D${footerRow}`,   { bold: false, italic: false, halign: 'center' });
-    // (Ký, ghi rõ họ tên) — file 5: A không italic, C italic, D không bold
-    styleCell(ws, `A${lastRow}`, { bold: false, italic: false, halign: 'left' });
-    styleCell(ws, `C${lastRow}`, { bold: false, italic: true,  halign: 'center' });
-    styleCell(ws, `D${lastRow}`, { bold: false, italic: false, halign: 'center' });
+    const cham1 = document.getElementById('cham1').value.trim() || 'Cán bộ chấm thi 1';
+    const cham2 = document.getElementById('cham2').value.trim() || 'Cán bộ chấm thi 2';
+    const donVi = document.getElementById('don-vi-ky').value.trim() || 'Trưởng Khoa/ Bộ môn';
+    sc(ws,`A${footerRow}`, { value: '\u00a0\u00a0 \u00a0\u00a0\u00a0' + cham1, bold:false, halign:'left' });
+    sc(ws,`C${footerRow}`, { value: cham2,    bold:true,  halign:'center' });
+    sc(ws,`D${footerRow}`, { value: signDate, bold:false, halign:'center' });
+    sc(ws,`A${lastRow}`,   { value: '\u00a0\u00a0 \u00a0\u00a0\u00a0(Ký, ghi rõ họ tên)', bold:false, italic:false, halign:'left' });
+    sc(ws,`C${lastRow}`,   { value: '(Ký, ghi rõ họ tên)', bold:false, italic:true,  halign:'center' });
+    sc(ws,`D${lastRow}`,   { value: '\u00a0\u00a0' + donVi, bold:false, italic:false, halign:'center' });
   }
 
-  return ws;
+  // ── Merge cells ─────────────────────────────────────────
+  ws.mergeCells('A2:C2');   ws.mergeCells('D2:F2');
+  ws.mergeCells('A3:C3');   ws.mergeCells('D3:F3');
+  ws.mergeCells('A5:F5');
+  ws.mergeCells('A6:F6');
+  ws.mergeCells('C7:D7');
+  ws.mergeCells('A8:F8');
+  ws.mergeCells('A9:C9');   ws.mergeCells('D9:F9');
+  ws.mergeCells('A10:C10'); ws.mergeCells('D10:E10');
+  ws.mergeCells('A11:A12'); ws.mergeCells('B11:B12');
+  ws.mergeCells('C11:C12'); ws.mergeCells('D11:D12');
+  ws.mergeCells('E11:E12'); ws.mergeCells('F11:F12');
+  ws.mergeCells(`A${footerRow}:B${footerRow}`);
+  ws.mergeCells(`D${footerRow}:F${footerRow}`);
+  ws.mergeCells(`A${lastRow}:B${lastRow}`);
+  ws.mergeCells(`D${lastRow}:F${lastRow}`);
+
+  // ── Xuất file ───────────────────────────────────────────
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = kind === 'office' ? '4. Rapphach_PhongKTBDCLGD.xlsx' : '5. Bangdiemsaurapphach.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus(`Đã xuất ${a.download}.`, 'ok');
 }
 
 function exportWorkbook(kind) {
@@ -1168,15 +1086,12 @@ function exportWorkbook(kind) {
     setStatus('Chưa có dữ liệu ráp phách để xuất.', 'warn');
     return;
   }
-  const wb = XLSX.utils.book_new();
-  const ws = buildSheet(kind);
-  XLSX.utils.book_append_sheet(wb, ws, 'Bangdiemsaurapphach');
-  const fileName = kind === 'office'
-    ? '4. Rapphach_PhongKTBDCLGD.xlsx'
-    : '5. Bangdiemsaurapphach.xlsx';
-  XLSX.writeFile(wb, fileName, { cellStyles: true });
-  setStatus(`Đã xuất ${fileName}.`, 'ok');
+  buildAndSave(kind).catch(err => {
+    console.error(err);
+    setStatus('Lỗi xuất file: ' + err.message, 'bad');
+  });
 }
+
 
 function resetAll() {
   state.roster = null;
