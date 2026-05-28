@@ -411,14 +411,14 @@
           <label for="template-office-file">File mẫu 4. Rapphach_PhongKTBDCLGD</label>
           <div class="file-box">
             <input id="template-office-file" type="file" accept=".xlsx,.xls">
-            <div id="template-office-meta" class="file-meta">Chưa nạp file mẫu. Nếu chọn file này, ứng dụng sẽ giữ nguyên format gốc.</div>
+            <div id="template-office-meta" class="file-meta">Chưa nạp file mẫu. Cần chọn để giữ nguyên format chuẩn của file 4.</div>
           </div>
         </div>
         <div class="field">
           <label for="template-score-file">File mẫu 5. Bangdiemsaurapphach</label>
           <div class="file-box">
             <input id="template-score-file" type="file" accept=".xlsx,.xls">
-            <div id="template-score-meta" class="file-meta">Chưa nạp file mẫu. Nếu chọn file này, ứng dụng sẽ giữ nguyên format gốc.</div>
+            <div id="template-score-meta" class="file-meta">Chưa nạp file mẫu. Cần chọn để giữ nguyên format chuẩn của file 5.</div>
           </div>
         </div>
         <div class="export-actions">
@@ -989,6 +989,49 @@ function applyRangeStyle(ws, rangeAddress, style) {
   }
 }
 
+function applyRequiredTypography(ws, options) {
+  const { kind, lastCol, headerRow, firstDataRow, lastDataRow, footerExcelRow } = options;
+  const isOffice = kind === 'office';
+  const thinBorder = {
+    top: { style: 'thin', color: { rgb: '000000' } },
+    bottom: { style: 'thin', color: { rgb: '000000' } },
+    left: { style: 'thin', color: { rgb: '000000' } },
+    right: { style: 'thin', color: { rgb: '000000' } }
+  };
+
+  applyRangeStyle(ws, `A1:${lastCol}${footerExcelRow + 1}`, {
+    font: { name: 'Times New Roman', sz: 12 }
+  });
+
+  applyRangeStyle(ws, `A2:${lastCol}3`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
+  applyRangeStyle(ws, `A5:${lastCol}5`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
+  applyRangeStyle(ws, `A${headerRow}:${lastCol}${headerRow}`, {
+    font: { name: 'Times New Roman', sz: 12, bold: true },
+    border: thinBorder
+  });
+
+  if (lastDataRow >= firstDataRow) {
+    applyRangeStyle(ws, `A${firstDataRow}:${lastCol}${lastDataRow}`, {
+      font: { name: 'Times New Roman', sz: 12 },
+      border: thinBorder
+    });
+  }
+
+  if (isOffice) {
+    applyRangeStyle(ws, `A${footerExcelRow}:A${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
+    applyRangeStyle(ws, `D${footerExcelRow}:D${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
+    applyRangeStyle(ws, `F${footerExcelRow}:I${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
+    applyRangeStyle(ws, `A${footerExcelRow + 1}:A${footerExcelRow + 1}`, { font: { name: 'Times New Roman', sz: 12, italic: true } });
+    applyRangeStyle(ws, `D${footerExcelRow + 1}:D${footerExcelRow + 1}`, { font: { name: 'Times New Roman', sz: 12, italic: true } });
+  } else {
+    applyRangeStyle(ws, `A${footerExcelRow}:A${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
+    applyRangeStyle(ws, `C${footerExcelRow}:C${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
+    applyRangeStyle(ws, `D${footerExcelRow}:H${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
+    applyRangeStyle(ws, `A${footerExcelRow + 1}:A${footerExcelRow + 1}`, { font: { name: 'Times New Roman', sz: 12, italic: true } });
+    applyRangeStyle(ws, `C${footerExcelRow + 1}:C${footerExcelRow + 1}`, { font: { name: 'Times New Roman', sz: 12, italic: true } });
+  }
+}
+
 function applySheetFormat(ws, options) {
   const { lastCol, headerRow, firstDataRow, lastDataRow, footerExcelRow, isOffice } = options;
   const thinBorder = {
@@ -1005,7 +1048,7 @@ function applySheetFormat(ws, options) {
     alignment: center
   });
   applyRangeStyle(ws, `A5:${lastCol}5`, {
-    font: { name: 'Times New Roman', sz: 14, bold: true },
+    font: { name: 'Times New Roman', sz: 12, bold: true },
     alignment: center
   });
   applyRangeStyle(ws, `A6:${lastCol}10`, {
@@ -1150,6 +1193,14 @@ function buildSheet(kind) {
     lastDataRow: startRow + state.merged.length,
     footerExcelRow: footerRow + 1,
     isOffice
+  });
+  applyRequiredTypography(ws, {
+    kind,
+    lastCol,
+    headerRow: 11,
+    firstDataRow: 13,
+    lastDataRow: startRow + state.merged.length,
+    footerExcelRow: footerRow + 1
   });
   return ws;
 }
@@ -1354,6 +1405,14 @@ function fillTemplateWorkbook(kind, templateWorkbook) {
   range.e.c = Math.max(range.e.c, lastColIndex);
   range.e.r = Math.max(range.e.r, newFooterRow);
   ws['!ref'] = XLSX.utils.encode_range(range);
+  applyRequiredTypography(ws, {
+    kind,
+    lastCol,
+    headerRow: 11,
+    firstDataRow: dataStartRow,
+    lastDataRow: dataStartRow + state.merged.length - 1,
+    footerExcelRow: newFooterRow
+  });
   wb.SheetNames[0] = sheetName;
   wb.Sheets[sheetName] = ws;
   return wb;
@@ -1365,11 +1424,11 @@ function exportWorkbook(kind) {
     return;
   }
   const template = state.templates[kind];
-  const wb = template ? fillTemplateWorkbook(kind, template) : XLSX.utils.book_new();
   if (!template) {
-    const ws = buildSheet(kind);
-    XLSX.utils.book_append_sheet(wb, ws, 'Bangdiemsaurapphach');
+    setStatus(`Cần nạp file mẫu ${kind === 'office' ? '4' : '5'} để giữ nguyên format chuẩn.`, 'warn');
+    return;
   }
+  const wb = fillTemplateWorkbook(kind, template);
   const fileName = kind === 'office'
     ? '4. Rapphach_PhongKTBDCLGD.xlsx'
     : '5. Bangdiemsaurapphach.xlsx';
@@ -1393,8 +1452,8 @@ function resetAll() {
   els.rosterMeta.textContent = 'Chưa nạp file.';
   els.mappingMeta.textContent = 'Chưa nạp file. Hỗ trợ Excel hoặc Word `.docx`; file `.doc` nên lưu lại thành `.docx` nếu trình duyệt không đọc được.';
   els.scoresMeta.textContent = 'Chưa nạp file.';
-  els.templateOfficeMeta.textContent = 'Chưa nạp file mẫu. Nếu chọn file này, ứng dụng sẽ giữ nguyên format gốc.';
-  els.templateScoreMeta.textContent = 'Chưa nạp file mẫu. Nếu chọn file này, ứng dụng sẽ giữ nguyên format gốc.';
+  els.templateOfficeMeta.textContent = 'Chưa nạp file mẫu. Cần chọn để giữ nguyên format chuẩn của file 4.';
+  els.templateScoreMeta.textContent = 'Chưa nạp file mẫu. Cần chọn để giữ nguyên format chuẩn của file 5.';
   els.mappingReadText.textContent = 'Chưa đọc bảng đối chiếu.';
   setStatus('Đã làm mới toàn bộ dữ liệu.', 'ok');
   updateUi();
