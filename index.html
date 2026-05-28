@@ -933,18 +933,18 @@ function thinBorder() {
   };
 }
 
-// Helper: áp dụng style cho 1 cell đã tồn tại trong worksheet
+// Helper: áp dụng style cho 1 cell - luôn dùng Times New Roman 12pt làm mặc định
 function styleCell(ws, addr, opts) {
   if (!ws[addr]) ws[addr] = { t: 's', v: '' };
   const c = ws[addr];
   if (!c.s) c.s = {};
 
-  if (opts.bold !== undefined || opts.sz !== undefined || opts.name !== undefined) {
-    c.s.font = c.s.font || {};
-    if (opts.bold !== undefined) c.s.font.bold = opts.bold;
-    if (opts.sz !== undefined) c.s.font.sz = opts.sz;
-    if (opts.name !== undefined) c.s.font.name = opts.name;
-  }
+  c.s.font = c.s.font || {};
+  c.s.font.name   = opts.name   !== undefined ? opts.name   : 'Times New Roman';
+  c.s.font.sz     = opts.sz     !== undefined ? opts.sz     : 12;
+  if (opts.bold   !== undefined) c.s.font.bold   = opts.bold;
+  if (opts.italic !== undefined) c.s.font.italic = opts.italic;
+
   if (opts.halign !== undefined) {
     c.s.alignment = c.s.alignment || {};
     c.s.alignment.horizontal = opts.halign;
@@ -1094,74 +1094,80 @@ function buildSheet(kind) {
   ];
 
   // --- Style cells ---
-  // Hàng 2: bold, center
-  styleCell(ws, 'A2', { bold: true, halign: 'center' });
-  styleCell(ws, 'D2', { bold: true, halign: 'center' });
-  // Hàng 3: bold, center
-  styleCell(ws, 'A3', { bold: true, halign: 'center' });
-  styleCell(ws, 'D3', { bold: true, halign: 'center' });
-  // Hàng 5: bold, center
-  styleCell(ws, 'A5', { bold: true, halign: 'center' });
-  // Hàng 6: bold, center
-  styleCell(ws, 'A6', { bold: true, halign: 'center' });
-  // Hàng 7: C7 bold, center
-  styleCell(ws, 'C7', { bold: true, halign: 'center' });
-  // Hàng 8: bold, left
-  styleCell(ws, 'A8', { bold: true, halign: 'left' });
+  // Hàng 2: bold, center, Times New Roman 12
+  styleCell(ws, 'A2', { bold: true, italic: false, halign: 'center' });
+  styleCell(ws, 'D2', { bold: true, italic: false, halign: 'center' });
+  // Hàng 3
+  styleCell(ws, 'A3', { bold: true, italic: false, halign: 'center' });
+  styleCell(ws, 'D3', { bold: true, italic: false, halign: 'center' });
+  // Hàng 5
+  styleCell(ws, 'A5', { bold: true, italic: false, halign: 'center' });
+  // Hàng 6
+  styleCell(ws, 'A6', { bold: true, italic: false, halign: 'center' });
+  // Hàng 7
+  styleCell(ws, 'C7', { bold: true, italic: false, halign: 'center' });
+  // Hàng 8
+  styleCell(ws, 'A8', { bold: true, italic: false, halign: 'left' });
   // Hàng 9
-  styleCell(ws, 'A9', { bold: true, halign: 'left' });
-  styleCell(ws, 'D9', { bold: true, halign: 'left' });
+  styleCell(ws, 'A9', { bold: true, italic: false, halign: 'left' });
+  styleCell(ws, 'D9', { bold: true, italic: false, halign: 'left' });
   // Hàng 10
-  styleCell(ws, 'A10', { bold: true, halign: 'left' });
-  styleCell(ws, 'D10', { bold: true, halign: 'left' });
+  styleCell(ws, 'A10', { bold: true, italic: false, halign: 'left' });
+  styleCell(ws, 'D10', { bold: true, italic: false, halign: 'left' });
 
   // Header bảng (hàng 11): bold, center, border thin
   ['A11','B11','C11','D11','E11','F11'].forEach(addr => {
-    styleCell(ws, addr, { bold: true, halign: 'center', border: thinBorder() });
+    styleCell(ws, addr, { bold: true, italic: false, halign: 'center', border: thinBorder() });
   });
-  // Hàng 12 (border dưới và bên, không có top vì merge với 11)
+  // Hàng 12 (merge bên dưới header, chỉ có border trái/phải/dưới)
   ['A12','B12','C12','D12','E12','F12'].forEach(addr => {
     styleCell(ws, addr, {
+      bold: false, italic: false,
       border: {
-        top: { style: undefined },
+        top:    { style: undefined },
         bottom: { style: 'thin' },
-        left: { style: 'thin' },
-        right: { style: 'thin' }
+        left:   { style: 'thin' },
+        right:  { style: 'thin' }
       }
     });
   });
 
-  // Dữ liệu: border thin toàn bộ; STT bold+center; Mã phách center
+  // Dữ liệu: border thin; STT bold+center; các cột còn lại không bold
   for (let idx = 0; idx < n; idx++) {
     const rowNum = dataStartRow + idx;
     const cols = ['A','B','C','D','E','F'];
     cols.forEach((col, ci) => {
       const addr = col + rowNum;
-      const isStt = ci === 0;
-      const isPhach = ci === 4;
+      const isStt   = ci === 0;  // cột A: STT — bold, center
+      const isPhach = ci === 4;  // cột E: Mã phách — center
       styleCell(ws, addr, {
-        bold: isStt ? true : false,
+        bold:   isStt,
+        italic: false,
         halign: (isStt || isPhach) ? 'center' : undefined,
         border: thinBorder()
       });
     });
   }
 
-  // Footer: tên ký
+  // Footer
   if (kind === 'office') {
-    styleCell(ws, `A${footerRow}`, { bold: true, halign: 'center' });
-    styleCell(ws, `C${footerRow}`, { bold: true, halign: 'center' });
-    styleCell(ws, `D${footerRow}`, { bold: false, halign: 'center' });
-    styleCell(ws, `A${footerRow + 1}`, { bold: false, halign: 'left' });
-    styleCell(ws, `C${footerRow + 1}`, { bold: false, halign: 'center' });
-    styleCell(ws, `D${footerRow + 1}`, { bold: true, halign: 'center' });
+    // File 4: CB ráp phách 1 — bold, center
+    styleCell(ws, `A${footerRow}`,   { bold: true,  italic: false, halign: 'center' });
+    styleCell(ws, `C${footerRow}`,   { bold: true,  italic: false, halign: 'center' });
+    styleCell(ws, `D${footerRow}`,   { bold: false, italic: false, halign: 'center' });
+    // (Ký, ghi rõ họ tên) — file 4: A22 không italic, C22 italic
+    styleCell(ws, `A${footerRow+1}`, { bold: false, italic: false, halign: 'left' });
+    styleCell(ws, `C${footerRow+1}`, { bold: false, italic: true,  halign: 'center' });
+    styleCell(ws, `D${footerRow+1}`, { bold: true,  italic: false, halign: 'center' });
   } else {
-    styleCell(ws, `A${footerRow}`, { bold: false, halign: 'left' });
-    styleCell(ws, `C${footerRow}`, { bold: true, halign: 'center' });
-    styleCell(ws, `D${footerRow}`, { bold: false, halign: 'center' });
-    styleCell(ws, `A${footerRow + 1}`, { bold: false, halign: 'left' });
-    styleCell(ws, `C${footerRow + 1}`, { bold: false, halign: 'center' });
-    styleCell(ws, `D${footerRow + 1}`, { bold: false, halign: 'center' });
+    // File 5: Cán bộ chấm thi 1 — không bold (A), có bold (C)
+    styleCell(ws, `A${footerRow}`,   { bold: false, italic: false, halign: 'left' });
+    styleCell(ws, `C${footerRow}`,   { bold: true,  italic: false, halign: 'center' });
+    styleCell(ws, `D${footerRow}`,   { bold: false, italic: false, halign: 'center' });
+    // (Ký, ghi rõ họ tên) — file 5: A không italic, C italic; D không bold
+    styleCell(ws, `A${footerRow+1}`, { bold: false, italic: false, halign: 'left' });
+    styleCell(ws, `C${footerRow+1}`, { bold: false, italic: true,  halign: 'center' });
+    styleCell(ws, `D${footerRow+1}`, { bold: false, italic: false, halign: 'center' });
   }
 
   return ws;
