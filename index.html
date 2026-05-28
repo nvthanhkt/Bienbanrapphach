@@ -1007,14 +1007,46 @@ function applyRequiredTypography(ws, options) {
   applyRangeStyle(ws, `A5:${lastCol}5`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
   applyRangeStyle(ws, `A${headerRow}:${lastCol}${headerRow}`, {
     font: { name: 'Times New Roman', sz: 12, bold: true },
-    border: thinBorder
+    border: thinBorder,
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
   });
 
   if (lastDataRow >= firstDataRow) {
     applyRangeStyle(ws, `A${firstDataRow}:${lastCol}${lastDataRow}`, {
       font: { name: 'Times New Roman', sz: 12 },
-      border: thinBorder
+      border: thinBorder,
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
     });
+  }
+
+  if (lastDataRow >= firstDataRow) {
+    if (isOffice) {
+      applyRangeStyle(ws, `C${firstDataRow}:E${lastDataRow}`, {
+        alignment: { horizontal: 'left', vertical: 'center', wrapText: true }
+      });
+      applyRangeStyle(ws, `C${headerRow}:E${headerRow}`, {
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+      });
+      applyRangeStyle(ws, `A${firstDataRow}:B${lastDataRow}`, {
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+      });
+      applyRangeStyle(ws, `F${firstDataRow}:G${lastDataRow}`, {
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+      });
+    } else {
+      applyRangeStyle(ws, `B${firstDataRow}:D${lastDataRow}`, {
+        alignment: { horizontal: 'left', vertical: 'center', wrapText: true }
+      });
+      applyRangeStyle(ws, `B${headerRow}:D${headerRow}`, {
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+      });
+      applyRangeStyle(ws, `A${firstDataRow}:A${lastDataRow}`, {
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+      });
+      applyRangeStyle(ws, `E${firstDataRow}:F${lastDataRow}`, {
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+      });
+    }
   }
 
   if (isOffice) {
