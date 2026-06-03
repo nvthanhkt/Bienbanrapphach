@@ -411,14 +411,14 @@
           <label for="template-office-file">File mẫu 4. Rapphach_PhongKTBDCLGD</label>
           <div class="file-box">
             <input id="template-office-file" type="file" accept=".xlsx,.xls">
-            <div id="template-office-meta" class="file-meta">Chưa nạp file mẫu. Cần chọn để giữ nguyên format chuẩn của file 4.</div>
+            <div id="template-office-meta" class="file-meta">Tùy chọn. Nếu không nạp file mẫu, ứng dụng vẫn xuất theo format chuẩn đã thiết lập.</div>
           </div>
         </div>
         <div class="field">
           <label for="template-score-file">File mẫu 5. Bangdiemsaurapphach</label>
           <div class="file-box">
             <input id="template-score-file" type="file" accept=".xlsx,.xls">
-            <div id="template-score-meta" class="file-meta">Chưa nạp file mẫu. Cần chọn để giữ nguyên format chuẩn của file 5.</div>
+            <div id="template-score-meta" class="file-meta">Tùy chọn. Nếu không nạp file mẫu, ứng dụng vẫn xuất theo format chuẩn đã thiết lập.</div>
           </div>
         </div>
         <div class="export-actions">
@@ -426,7 +426,7 @@
           <button id="btn-export-score" class="btn-secondary btn-disabled" type="button" disabled>Xuất file 5</button>
           <button id="btn-export-all" class="btn-gold btn-disabled" type="button" disabled>Xuất cả 2 file</button>
         </div>
-        <div class="hint">Khi có file mẫu, phần xuất sẽ dùng chính file mẫu để giữ format chuẩn rồi ghi dữ liệu mới vào vùng bảng.</div>
+        <div class="hint">Có thể xuất trực tiếp theo format chuẩn. Nếu chọn file mẫu, ứng dụng sẽ ghi dữ liệu lên file mẫu đó.</div>
       </div>
     </aside>
   </div>
@@ -1481,11 +1481,11 @@ function exportWorkbook(kind) {
     return;
   }
   const template = state.templates[kind];
+  const wb = template ? fillTemplateWorkbook(kind, template) : XLSX.utils.book_new();
   if (!template) {
-    setStatus(`Cần nạp file mẫu ${kind === 'office' ? '4' : '5'} để giữ nguyên format chuẩn.`, 'warn');
-    return;
+    const ws = buildSheet(kind);
+    XLSX.utils.book_append_sheet(wb, ws, 'Bangdiemsaurapphach');
   }
-  const wb = fillTemplateWorkbook(kind, template);
   const fileName = kind === 'office'
     ? '4. Rapphach_PhongKTBDCLGD.xlsx'
     : '5. Bangdiemsaurapphach.xlsx';
@@ -1509,8 +1509,8 @@ function resetAll() {
   els.rosterMeta.textContent = 'Chưa nạp file.';
   els.mappingMeta.textContent = 'Chưa nạp file. Hỗ trợ Excel hoặc Word `.docx`; file `.doc` nên lưu lại thành `.docx` nếu trình duyệt không đọc được.';
   els.scoresMeta.textContent = 'Chưa nạp file.';
-  els.templateOfficeMeta.textContent = 'Chưa nạp file mẫu. Cần chọn để giữ nguyên format chuẩn của file 4.';
-  els.templateScoreMeta.textContent = 'Chưa nạp file mẫu. Cần chọn để giữ nguyên format chuẩn của file 5.';
+  els.templateOfficeMeta.textContent = 'Tùy chọn. Nếu không nạp file mẫu, ứng dụng vẫn xuất theo format chuẩn đã thiết lập.';
+  els.templateScoreMeta.textContent = 'Tùy chọn. Nếu không nạp file mẫu, ứng dụng vẫn xuất theo format chuẩn đã thiết lập.';
   els.mappingReadText.textContent = 'Chưa đọc bảng đối chiếu.';
   setStatus('Đã làm mới toàn bộ dữ liệu.', 'ok');
   updateUi();
