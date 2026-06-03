@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ráp Phách Và Xuất Bảng Điểm</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap');
@@ -948,272 +949,165 @@ function formatSignDate() {
   return `Huế, Ngày ${String(date.getDate()).padStart(2, '0')} tháng ${String(date.getMonth() + 1).padStart(2, '0')} năm ${date.getFullYear()}`;
 }
 
-function fillRow(values, size) {
-  const row = values.slice();
-  while (row.length < size) row.push('');
-  return row;
-}
+// ─────────────────────────────────────────────────────────────
+// XUẤT EXCEL — dùng ExcelJS để giữ đúng font/bold/italic/border
+// ─────────────────────────────────────────────────────────────
 
-function setStyle(ws, address, style) {
-  if (!ws[address]) ws[address] = { t: 's', v: '' };
-  ws[address].s = { ...(ws[address].s || {}), ...style };
-}
+const TNR = 'Times New Roman';
+const SZ  = 12;
+const THIN_SIDE = { style: 'thin' };
+const ALL_THIN  = { top: THIN_SIDE, bottom: THIN_SIDE, left: THIN_SIDE, right: THIN_SIDE };
 
-function applyRangeStyle(ws, rangeAddress, style) {
-  const range = XLSX.utils.decode_range(rangeAddress);
-  for (let r = range.s.r; r <= range.e.r; r++) {
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      setStyle(ws, XLSX.utils.encode_cell({ r, c }), style);
-    }
-  }
-}
-
-function applyRequiredTypography(ws, options) {
-  const { kind, lastCol, headerRow, firstDataRow, lastDataRow, footerExcelRow } = options;
-  const isOffice = kind === 'office';
-  const thinBorder = {
-    top: { style: 'thin', color: { rgb: '000000' } },
-    bottom: { style: 'thin', color: { rgb: '000000' } },
-    left: { style: 'thin', color: { rgb: '000000' } },
-    right: { style: 'thin', color: { rgb: '000000' } }
+// Ghi giá trị + style vào một ô ExcelJS
+function sc(ws, addr, val, opts = {}) {
+  const c = ws.getCell(addr);
+  if (val !== null && val !== undefined) c.value = val;
+  c.font = {
+    name:   TNR,
+    size:   SZ,
+    bold:   opts.bold   || false,
+    italic: opts.italic || false,
   };
-
-  applyRangeStyle(ws, `A1:${lastCol}${footerExcelRow + 1}`, {
-    font: { name: 'Times New Roman', sz: 12 }
-  });
-
-  applyRangeStyle(ws, `A2:${lastCol}3`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
-  applyRangeStyle(ws, `A5:${lastCol}5`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
-  applyRangeStyle(ws, `A${headerRow}:${lastCol}${headerRow}`, {
-    font: { name: 'Times New Roman', sz: 12, bold: true },
-    border: thinBorder,
-    alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
-  });
-
-  if (lastDataRow >= firstDataRow) {
-    applyRangeStyle(ws, `A${firstDataRow}:${lastCol}${lastDataRow}`, {
-      font: { name: 'Times New Roman', sz: 12 },
-      border: thinBorder,
-      alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
-    });
+  if (opts.halign || opts.valign || opts.wrap) {
+    c.alignment = {
+      horizontal: opts.halign || undefined,
+      vertical:   opts.valign || 'center',
+      wrapText:   opts.wrap   || false,
+    };
   }
-
-  if (lastDataRow >= firstDataRow) {
-    if (isOffice) {
-      applyRangeStyle(ws, `C${firstDataRow}:E${lastDataRow}`, {
-        alignment: { horizontal: 'left', vertical: 'center', wrapText: true }
-      });
-      applyRangeStyle(ws, `C${headerRow}:E${headerRow}`, {
-        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
-      });
-      applyRangeStyle(ws, `A${firstDataRow}:B${lastDataRow}`, {
-        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
-      });
-      applyRangeStyle(ws, `F${firstDataRow}:G${lastDataRow}`, {
-        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
-      });
-    } else {
-      applyRangeStyle(ws, `B${firstDataRow}:D${lastDataRow}`, {
-        alignment: { horizontal: 'left', vertical: 'center', wrapText: true }
-      });
-      applyRangeStyle(ws, `B${headerRow}:D${headerRow}`, {
-        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
-      });
-      applyRangeStyle(ws, `A${firstDataRow}:A${lastDataRow}`, {
-        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
-      });
-      applyRangeStyle(ws, `E${firstDataRow}:F${lastDataRow}`, {
-        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
-      });
-    }
-  }
-
-  if (isOffice) {
-    applyRangeStyle(ws, `A${footerExcelRow}:A${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
-    applyRangeStyle(ws, `D${footerExcelRow}:D${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
-    applyRangeStyle(ws, `F${footerExcelRow}:I${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
-    applyRangeStyle(ws, `A${footerExcelRow + 1}:A${footerExcelRow + 1}`, { font: { name: 'Times New Roman', sz: 12, italic: true } });
-    applyRangeStyle(ws, `D${footerExcelRow + 1}:D${footerExcelRow + 1}`, { font: { name: 'Times New Roman', sz: 12, italic: true } });
-  } else {
-    applyRangeStyle(ws, `A${footerExcelRow}:A${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
-    applyRangeStyle(ws, `C${footerExcelRow}:C${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
-    applyRangeStyle(ws, `D${footerExcelRow}:H${footerExcelRow}`, { font: { name: 'Times New Roman', sz: 12, bold: true } });
-    applyRangeStyle(ws, `A${footerExcelRow + 1}:A${footerExcelRow + 1}`, { font: { name: 'Times New Roman', sz: 12, italic: true } });
-    applyRangeStyle(ws, `C${footerExcelRow + 1}:C${footerExcelRow + 1}`, { font: { name: 'Times New Roman', sz: 12, italic: true } });
-  }
+  if (opts.border) c.border = opts.border;
 }
 
-function applySheetFormat(ws, options) {
-  const { lastCol, headerRow, firstDataRow, lastDataRow, footerExcelRow, isOffice } = options;
-  const thinBorder = {
-    top: { style: 'thin', color: { rgb: '000000' } },
-    bottom: { style: 'thin', color: { rgb: '000000' } },
-    left: { style: 'thin', color: { rgb: '000000' } },
-    right: { style: 'thin', color: { rgb: '000000' } }
-  };
-  const center = { horizontal: 'center', vertical: 'center', wrapText: true };
-  const left = { horizontal: 'left', vertical: 'center', wrapText: true };
+async function buildAndSave(kind) {
+  const meta      = collectMeta();
+  const hocKy     = document.getElementById('hoc-ky').value.trim()  || '2';
+  const namHoc    = document.getElementById('nam-hoc').value.trim() || '2025-2026';
+  const signDate  = formatSignDate();
+  const isOffice  = kind === 'office';
+  const n         = state.merged.length;
 
-  applyRangeStyle(ws, `A2:${lastCol}3`, {
-    font: { name: 'Times New Roman', sz: 12, bold: true },
-    alignment: center
-  });
-  applyRangeStyle(ws, `A5:${lastCol}5`, {
-    font: { name: 'Times New Roman', sz: 12, bold: true },
-    alignment: center
-  });
-  applyRangeStyle(ws, `A6:${lastCol}10`, {
-    font: { name: 'Times New Roman', sz: 12 },
-    alignment: { horizontal: 'left', vertical: 'center', wrapText: true }
-  });
-  applyRangeStyle(ws, `A${headerRow}:${lastCol}${headerRow}`, {
-    font: { name: 'Times New Roman', sz: 12, bold: true },
-    alignment: center,
-    border: thinBorder
-  });
-  if (lastDataRow >= firstDataRow) {
-    applyRangeStyle(ws, `A${firstDataRow}:${lastCol}${lastDataRow}`, {
-      font: { name: 'Times New Roman', sz: 12 },
-      alignment: center,
-      border: thinBorder
-    });
-    applyRangeStyle(ws, `${isOffice ? 'D' : 'C'}${firstDataRow}:${isOffice ? 'D' : 'C'}${lastDataRow}`, {
-      font: { name: 'Times New Roman', sz: 12 },
-      alignment: left,
-      border: thinBorder
-    });
+  // Hàng dữ liệu: 13 … (13+n-1), sau đó 1 hàng trống, rồi footer
+  const DATA_START = 13;
+  const footerRow  = DATA_START + n + 1;   // hàng tên ký
+  const lastRow    = footerRow + 1;        // hàng "(Ký, ghi rõ họ tên)"
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Bangdiemsaurapphach');
+
+  // ── Độ rộng cột (khớp file mẫu) ─────────────────────────
+  ws.columns = [
+    { width: 7.71  }, // A  (≈14.71 pt → ~7.7 char ExcelJS)
+    { width: 11.86 }, // B
+    { width: 23.14 }, // C
+    { width: 18.29 }, // D
+    { width: 12.43 }, // E
+    { width: 13.14 }, // F
+  ];
+
+  // ── Chiều cao hàng 15.75pt cho toàn bộ ──────────────────
+  for (let r = 2; r <= lastRow; r++) {
+    ws.getRow(r).height = 15.75;
   }
-  applyRangeStyle(ws, `A${footerExcelRow}:${lastCol}${footerExcelRow + 1}`, {
-    font: { name: 'Times New Roman', sz: 12, bold: true },
-    alignment: center
-  });
-  ws['!margins'] = { left: 0.3, right: 0.3, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 };
-}
 
-function buildSheet(kind) {
-  const meta = collectMeta();
-  const hocKy = document.getElementById('hoc-ky').value.trim() || '2';
-  const namHoc = document.getElementById('nam-hoc').value.trim() || '2025-2026';
-  const signDate = formatSignDate();
-  const rows = [];
-  const isOffice = kind === 'office';
-  const colCount = isOffice ? 9 : 8;
-  const lastCol = isOffice ? 'I' : 'H';
+  // ── NỘI DUNG & STYLE ─────────────────────────────────────
 
-  rows[1] = isOffice
-    ? ['ĐẠI HỌC HUẾ', '', '', '', 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', '', '', '', '']
-    : ['ĐẠI HỌC HUẾ', '', '', 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', '', '', '', ''];
-  rows[2] = isOffice
-    ? ['TRƯỜNG ĐẠI HỌC Y - DƯỢC', '', '', '', 'Độc lập - Tự do - Hạnh phúc', '', '', '', '']
-    : ['TRƯỜNG ĐẠI HỌC Y - DƯỢC', '', '', 'Độc lập - Tự do - Hạnh phúc', '', '', '', ''];
-  rows[4] = fillRow(['BẢNG ĐIỂM THI KẾT THÚC HỌC PHẦN'], colCount);
-  rows[5] = fillRow([`Học kỳ: ${hocKy} ; Năm học: ${namHoc}`], colCount);
-  rows[6] = isOffice
-    ? ['', '', '', `Hình thức thi: ${meta['Hình thức thi'] || ''}`, '', '', '', '', '']
-    : ['', '', `Hình thức thi: ${meta['Hình thức thi'] || ''}`, '', '', '', '', ''];
-  rows[7] = fillRow([`Tên học phần: ${meta['Tên học phần'] || ''}`], colCount);
-  rows[8] = isOffice
-    ? [`Mã học phần: ${meta['Mã học phần'] || ''}`, '', '', '', `Ngày thi: ${meta['Ngày thi'] || ''}`, '', '', '', '']
-    : [`Mã học phần: ${meta['Mã học phần'] || ''}`, '', '', `Ngày thi: ${meta['Ngày thi'] || ''}`, '', '', '', ''];
-  rows[9] = isOffice
-    ? [`Phòng thi: ${meta['Phòng thi'] || ''}`, '', '', '', `Hệ: ${meta['Hệ'] || ''}`, '', '', '', '']
-    : [`Phòng thi: ${meta['Phòng thi'] || ''}`, '', '', `Hệ: ${meta['Hệ'] || ''}`, '', '', '', ''];
-  rows[10] = isOffice
-    ? ['Stt', 'SBD', 'Mã SV', 'Họ tên sinh viên', 'Mã lớp', 'Mã phách', 'Điểm', '', '']
-    : ['Stt', 'Mã SV', 'Họ tên sinh viên', 'Mã lớp', 'Mã phách', 'Điểm', '', ''];
+  // Hàng 2-3: tiêu đề trường
+  sc(ws,'A2','ĐẠI HỌC HUẾ',                          {bold:true, halign:'center'});
+  sc(ws,'D2','CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM',   {bold:true, halign:'center'});
+  sc(ws,'A3','TRƯỜNG ĐẠI HỌC Y - DƯỢC',               {bold:true, halign:'center'});
+  sc(ws,'D3','Độc lập - Tự do - Hạnh phúc',           {bold:true, halign:'center'});
 
-  const startRow = 12;
-  state.merged.forEach((item, index) => {
-    rows[startRow + index] = isOffice
-      ? [item.stt, item.sbd, item.maSv, item.hoTen, item.maLop, item.phach, item.diem, '', '']
-      : [item.stt, item.maSv, item.hoTen, item.maLop, item.phach, item.diem, '', ''];
+  // Hàng 5-6: tiêu đề bảng
+  sc(ws,'A5','BẢNG ĐIỂM THI KẾT THÚC HỌC PHẦN',       {bold:true, halign:'center'});
+  sc(ws,'A6',`Học kỳ: ${hocKy} ; Năm học: ${namHoc}`, {bold:true, halign:'center'});
+
+  // Hàng 7-10: thông tin học phần
+  sc(ws,'C7', `Hình thức thi: ${meta['Hình thức thi']||''}`, {bold:true, halign:'center'});
+  sc(ws,'A8', `Tên học phần: ${meta['Tên học phần']  ||''}`, {bold:true, halign:'left'});
+  sc(ws,'A9', `Mã học phần: ${meta['Mã học phần']    ||''}`, {bold:true, halign:'left'});
+  sc(ws,'D9', `Ngày thi: ${meta['Ngày thi']           ||''}`, {bold:true, halign:'left'});
+  sc(ws,'A10',`Phòng thi: ${meta['Phòng thi']         ||''}`, {bold:true, halign:'left'});
+  sc(ws,'D10',`Hệ: ${meta['Hệ']                       ||''}`, {bold:true, halign:'left'});
+
+  // Hàng 11: header bảng (merge xuống hàng 12)
+  const headers = [['A11','Stt'],['B11','Mã SV'],['C11','Họ tên sinh viên'],
+                   ['D11','Mã lớp'],['E11','Mã phách'],['F11','Điểm']];
+  headers.forEach(([addr, val]) =>
+    sc(ws, addr, val, {bold:true, halign:'center', valign:'center', wrap:true, border:ALL_THIN})
+  );
+
+  // Hàng dữ liệu
+  state.merged.forEach((item, idx) => {
+    const r       = DATA_START + idx;
+    const sttNum  = parseInt(item.stt) || item.stt;
+    const phachNum= item.phach !== '' ? (parseInt(item.phach) || item.phach) : '';
+    const diemVal = (item.diem !== '' && !isNaN(Number(item.diem)))
+                    ? Number(item.diem) : (item.diem || '');
+
+    sc(ws,`A${r}`, sttNum,    {bold:true,  halign:'center', border:ALL_THIN});
+    sc(ws,`B${r}`, item.maSv, {bold:false,                  border:ALL_THIN});
+    sc(ws,`C${r}`, item.hoTen,{bold:false,                  border:ALL_THIN});
+    sc(ws,`D${r}`, item.maLop,{bold:false,                  border:ALL_THIN});
+    sc(ws,`E${r}`, phachNum,  {bold:false, halign:'center', border:ALL_THIN});
+    sc(ws,`F${r}`, diemVal,   {bold:false,                  border:ALL_THIN});
   });
 
-  const footerRow = startRow + state.merged.length + 1;
+  // Footer
   if (isOffice) {
-    rows[footerRow] = [
-      document.getElementById('rap1').value.trim() || 'CB ráp phách 1',
-      '',
-      '',
-      document.getElementById('rap2').value.trim() || 'CB ráp phách 2',
-      '',
-      signDate,
-      '',
-      '',
-      ''
-    ];
-    rows[footerRow + 1] = ['(Ký, ghi rõ họ tên)', '', '', '(Ký, ghi rõ họ tên)', '', 'Lãnh đạo P. KTBĐCLGD', '', '', ''];
+    const rap1 = document.getElementById('rap1').value.trim() || 'CB ráp phách 1';
+    const rap2 = document.getElementById('rap2').value.trim() || 'CB ráp phách 2';
+    sc(ws,`A${footerRow}`, rap1,     {bold:true,  halign:'center'});
+    sc(ws,`C${footerRow}`, rap2,     {bold:true,  halign:'center'});
+    sc(ws,`D${footerRow}`, signDate, {bold:false, halign:'center'});
+    sc(ws,`A${lastRow}`, '\u00a0\u00a0 \u00a0\u00a0\u00a0(Ký, ghi rõ họ tên)',
+                                     {bold:false, italic:false, halign:'left'});
+    sc(ws,`C${lastRow}`, '(Ký, ghi rõ họ tên)', {bold:false, italic:true,  halign:'center'});
+    sc(ws,`D${lastRow}`, 'Lãnh đạo P. KTBĐCLGD',{bold:true,  italic:false, halign:'center'});
   } else {
-    rows[footerRow] = [
-      document.getElementById('cham1').value.trim() || 'Cán bộ chấm thi 1',
-      '',
-      document.getElementById('cham2').value.trim() || 'Cán bộ chấm thi 2',
-      signDate,
-      '',
-      '',
-      '',
-      ''
-    ];
-    rows[footerRow + 1] = ['(Ký, ghi rõ họ tên)', '', '(Ký, ghi rõ họ tên)', document.getElementById('don-vi-ky').value.trim() || 'Trưởng Khoa/ Bộ môn', '', '', '', ''];
+    const cham1 = document.getElementById('cham1').value.trim() || 'Cán bộ chấm thi 1';
+    const cham2 = document.getElementById('cham2').value.trim() || 'Cán bộ chấm thi 2';
+    const donVi = document.getElementById('don-vi-ky').value.trim() || 'Trưởng Khoa/ Bộ môn';
+    sc(ws,`A${footerRow}`, '\u00a0\u00a0 \u00a0\u00a0\u00a0' + cham1,
+                                     {bold:false, halign:'left'});
+    sc(ws,`C${footerRow}`, cham2,    {bold:true,  halign:'center'});
+    sc(ws,`D${footerRow}`, signDate, {bold:false, halign:'center'});
+    sc(ws,`A${lastRow}`, '\u00a0\u00a0 \u00a0\u00a0\u00a0(Ký, ghi rõ họ tên)',
+                                     {bold:false, italic:false, halign:'left'});
+    sc(ws,`C${lastRow}`, '(Ký, ghi rõ họ tên)',   {bold:false, italic:true,  halign:'center'});
+    sc(ws,`D${lastRow}`, '\u00a0\u00a0' + donVi,  {bold:false, italic:false, halign:'center'});
   }
 
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = isOffice
-    ? [{ wch: 7 }, { wch: 10 }, { wch: 15 }, { wch: 34 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 8 }]
-    : [{ wch: 8 }, { wch: 15 }, { wch: 34 }, { wch: 16 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 8 }];
-  ws['!rows'] = [];
-  ws['!rows'][4] = { hpt: 24 };
-  ws['!rows'][10] = { hpt: 22 };
-  ws['!merges'] = isOffice
-    ? [
-        XLSX.utils.decode_range('A2:D2'),
-        XLSX.utils.decode_range('E2:I2'),
-        XLSX.utils.decode_range('A3:D3'),
-        XLSX.utils.decode_range('E3:I3'),
-        XLSX.utils.decode_range('A5:I5'),
-        XLSX.utils.decode_range('A6:I6'),
-        XLSX.utils.decode_range('D7:I7'),
-        XLSX.utils.decode_range('A8:I8'),
-        XLSX.utils.decode_range('A9:D9'),
-        XLSX.utils.decode_range('E9:I9'),
-        XLSX.utils.decode_range('A10:D10'),
-        XLSX.utils.decode_range('E10:I10'),
-        XLSX.utils.decode_range(`F${footerRow + 1}:I${footerRow + 1}`),
-        XLSX.utils.decode_range(`F${footerRow + 2}:I${footerRow + 2}`)
-      ]
-    : [
-        XLSX.utils.decode_range('A2:C2'),
-        XLSX.utils.decode_range('D2:H2'),
-        XLSX.utils.decode_range('A3:C3'),
-        XLSX.utils.decode_range('D3:H3'),
-        XLSX.utils.decode_range('A5:H5'),
-        XLSX.utils.decode_range('A6:H6'),
-        XLSX.utils.decode_range('C7:H7'),
-        XLSX.utils.decode_range('A8:H8'),
-        XLSX.utils.decode_range('A9:C9'),
-        XLSX.utils.decode_range('D9:H9'),
-        XLSX.utils.decode_range('A10:C10'),
-        XLSX.utils.decode_range('D10:H10'),
-        XLSX.utils.decode_range(`D${footerRow + 1}:H${footerRow + 1}`),
-        XLSX.utils.decode_range(`D${footerRow + 2}:H${footerRow + 2}`)
-      ];
-  applySheetFormat(ws, {
-    lastCol,
-    headerRow: 11,
-    firstDataRow: 13,
-    lastDataRow: startRow + state.merged.length,
-    footerExcelRow: footerRow + 1,
-    isOffice
+  // ── Merge cells (khớp chính xác file mẫu) ───────────────
+  ws.mergeCells('A2:C2');    ws.mergeCells('D2:F2');
+  ws.mergeCells('A3:C3');    ws.mergeCells('D3:F3');
+  ws.mergeCells('A5:F5');
+  ws.mergeCells('A6:F6');
+  ws.mergeCells('C7:D7');
+  ws.mergeCells('A8:F8');
+  ws.mergeCells('A9:C9');    ws.mergeCells('D9:F9');
+  ws.mergeCells('A10:C10');  ws.mergeCells('D10:E10');
+  ws.mergeCells('A11:A12');  ws.mergeCells('B11:B12');
+  ws.mergeCells('C11:C12');  ws.mergeCells('D11:D12');
+  ws.mergeCells('E11:E12');  ws.mergeCells('F11:F12');
+  ws.mergeCells(`A${footerRow}:B${footerRow}`);
+  ws.mergeCells(`D${footerRow}:F${footerRow}`);
+  ws.mergeCells(`A${lastRow}:B${lastRow}`);
+  ws.mergeCells(`D${lastRow}:F${lastRow}`);
+
+  // ── Xuất file ────────────────────────────────────────────
+  const buf  = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   });
-  applyRequiredTypography(ws, {
-    kind,
-    lastCol,
-    headerRow: 11,
-    firstDataRow: 13,
-    lastDataRow: startRow + state.merged.length,
-    footerExcelRow: footerRow + 1
-  });
-  return ws;
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href    = url;
+  a.download = isOffice
+    ? '4. Rapphach_PhongKTBDCLGD.xlsx'
+    : '5. Bangdiemsaurapphach.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus(`Đã xuất ${a.download}.`, 'ok');
 }
 
 function exportWorkbook(kind) {
@@ -1221,14 +1115,10 @@ function exportWorkbook(kind) {
     setStatus('Chưa có dữ liệu ráp phách để xuất.', 'warn');
     return;
   }
-  const wb = XLSX.utils.book_new();
-  const ws = buildSheet(kind);
-  XLSX.utils.book_append_sheet(wb, ws, 'Bangdiemsaurapphach');
-  const fileName = kind === 'office'
-    ? '4. Rapphach_PhongKTBDCLGD.xlsx'
-    : '5. Bangdiemsaurapphach.xlsx';
-  XLSX.writeFile(wb, fileName);
-  setStatus(`Đã xuất ${fileName}.`, 'ok');
+  buildAndSave(kind).catch(err => {
+    console.error(err);
+    setStatus('Lỗi xuất file: ' + err.message, 'bad');
+  });
 }
 
 function resetAll() {
