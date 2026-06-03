@@ -842,7 +842,9 @@ function mergeAllData() {
     .sort((a, b) => Number(a.phach) - Number(b.phach))
     .map((item, index) => {
       const student = rosterBySbd.get(item.sbd) || {};
-      const score = scoreByPhach.get(String(item.phach)) || {};
+      const scoreRow = scoreByPhach.get(String(item.phach));
+      // Phân biệt rõ: scoreRow tồn tại nhưng diem=0 thì giữ 0; không tồn tại thì để ''
+      const diem = scoreRow ? (scoreRow.diem ?? '') : '';
       return {
         stt: index + 1,
         sbd: item.sbd,
@@ -850,22 +852,44 @@ function mergeAllData() {
         hoTen: student.hoTen || '',
         maLop: student.maLop || '',
         phach: String(item.phach),
-        diem: score.diem ?? '',
-        diemChu: score.diemChu || '',
-        diem1: score.diem1 || '',
-        diem2: score.diem2 || ''
+        diem,
+        diemChu: scoreRow ? (scoreRow.diemChu || '') : '',
+        diem1:   scoreRow ? (scoreRow.diem1   || '') : '',
+        diem2:   scoreRow ? (scoreRow.diem2   || '') : ''
       };
     });
 
   state.merged = merged;
 
   const missingStudents = merged.filter((row) => !row.maSv).length;
-  const missingScores = merged.filter((row) => row.diem === '').length;
-  let message = `Đã ráp ${merged.length} dòng.`;
-  if (missingStudents) message += ` Thiếu ${missingStudents} sinh viên theo SBD.`;
-  if (missingScores) message += ` Thiếu ${missingScores} điểm theo mã phách.`;
+  // Chỉ tính thiếu khi diem === '' (không có trong file chấm), điểm 0 KHÔNG tính là thiếu
+  const missingScoreRows = merged.filter((row) => row.diem === '');
+  const missingScores = missingScoreRows.length;
 
-  setStatus(message, missingStudents || missingScores ? 'warn' : 'ok');
+  let html = `Đã ráp <strong>${merged.length}</strong> dòng.`;
+
+  if (missingStudents) {
+    html += ` Thiếu <strong>${missingStudents}</strong> sinh viên theo SBD.`;
+  }
+
+  if (missingScores) {
+    const phachList = missingScoreRows
+      .map(r => `<span style="
+        display:inline-block;
+        background:#FEE2E2;
+        color:#991B1B;
+        border:1px solid #FECACA;
+        border-radius:6px;
+        padding:1px 8px;
+        font-weight:700;
+        font-size:12px;
+        margin:2px 3px 2px 0;
+      ">Phách ${escapeHtml(r.phach)}</span>`)
+      .join('');
+    html += `<br>Thiếu điểm <strong>${missingScores}</strong> mã phách: ${phachList}`;
+  }
+
+  setStatusHtml(html, missingStudents || missingScores ? 'warn' : 'ok');
   updateUi();
 }
 
@@ -931,6 +955,11 @@ function renderPreview() {
 
 function setStatus(message, type = 'ok') {
   els.statusBox.textContent = message;
+  els.statusBox.className = `status${type === 'ok' ? '' : ` ${type}`}`;
+}
+
+function setStatusHtml(html, type = 'ok') {
+  els.statusBox.innerHTML = html;
   els.statusBox.className = `status${type === 'ok' ? '' : ` ${type}`}`;
 }
 
