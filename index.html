@@ -407,26 +407,12 @@
 
       <div class="card">
         <h2 class="section-title">Xuất file</h2>
-        <div class="field">
-          <label for="template-office-file">File mẫu 4. Rapphach_PhongKTBDCLGD</label>
-          <div class="file-box">
-            <input id="template-office-file" type="file" accept=".xlsx,.xls">
-            <div id="template-office-meta" class="file-meta">Tùy chọn. Nếu không nạp file mẫu, ứng dụng vẫn xuất theo format chuẩn đã thiết lập.</div>
-          </div>
-        </div>
-        <div class="field">
-          <label for="template-score-file">File mẫu 5. Bangdiemsaurapphach</label>
-          <div class="file-box">
-            <input id="template-score-file" type="file" accept=".xlsx,.xls">
-            <div id="template-score-meta" class="file-meta">Tùy chọn. Nếu không nạp file mẫu, ứng dụng vẫn xuất theo format chuẩn đã thiết lập.</div>
-          </div>
-        </div>
         <div class="export-actions">
           <button id="btn-export-office" class="btn-primary btn-disabled" type="button" disabled>Xuất file 4</button>
           <button id="btn-export-score" class="btn-secondary btn-disabled" type="button" disabled>Xuất file 5</button>
           <button id="btn-export-all" class="btn-gold btn-disabled" type="button" disabled>Xuất cả 2 file</button>
         </div>
-        <div class="hint">Có thể xuất trực tiếp theo format chuẩn. Nếu chọn file mẫu, ứng dụng sẽ ghi dữ liệu lên file mẫu đó.</div>
+        <div class="hint">File 4 và file 5 được xuất trực tiếp theo format chuẩn đã thiết lập.</div>
       </div>
     </aside>
   </div>
@@ -459,10 +445,6 @@ const state = {
   roster: null,
   mapping: null,
   scores: null,
-  templates: {
-    office: null,
-    score: null
-  },
   merged: []
 };
 
@@ -470,13 +452,9 @@ const els = {
   rosterFile: document.getElementById('roster-file'),
   mappingFile: document.getElementById('mapping-file'),
   scoresFile: document.getElementById('scores-file'),
-  templateOfficeFile: document.getElementById('template-office-file'),
-  templateScoreFile: document.getElementById('template-score-file'),
   rosterMeta: document.getElementById('roster-meta'),
   mappingMeta: document.getElementById('mapping-meta'),
   scoresMeta: document.getElementById('scores-meta'),
-  templateOfficeMeta: document.getElementById('template-office-meta'),
-  templateScoreMeta: document.getElementById('template-score-meta'),
   mappingText: document.getElementById('mapping-text'),
   previewBody: document.getElementById('preview-body'),
   statusBox: document.getElementById('status-box'),
@@ -518,30 +496,6 @@ els.scoresFile.addEventListener('change', async (e) => {
     updateUi();
   } catch (err) {
     setStatus(err.message, 'bad');
-  }
-});
-
-els.templateOfficeFile.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    state.templates.office = await readWorkbook(file);
-    els.templateOfficeMeta.textContent = `${file.name} | Đã nạp mẫu file 4`;
-    setStatus('Đã nạp file mẫu 4 để giữ nguyên format khi xuất.', 'ok');
-  } catch (err) {
-    setStatus(`Không đọc được file mẫu 4: ${err.message}`, 'bad');
-  }
-});
-
-els.templateScoreFile.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    state.templates.score = await readWorkbook(file);
-    els.templateScoreMeta.textContent = `${file.name} | Đã nạp mẫu file 5`;
-    setStatus('Đã nạp file mẫu 5 để giữ nguyên format khi xuất.', 'ok');
-  } catch (err) {
-    setStatus(`Không đọc được file mẫu 5: ${err.message}`, 'bad');
   }
 });
 
@@ -1262,230 +1216,14 @@ function buildSheet(kind) {
   return ws;
 }
 
-function cloneWorkbook(workbook) {
-  return JSON.parse(JSON.stringify(workbook));
-}
-
-function firstWorksheet(workbook) {
-  const sheetName = workbook.SheetNames[0];
-  return { sheetName, ws: workbook.Sheets[sheetName] };
-}
-
-function setCellValue(ws, address, value, styleFrom) {
-  const existingStyle = ws[address]?.s;
-  const inheritedStyle = styleFrom ? ws[styleFrom]?.s : null;
-  const style = existingStyle || inheritedStyle;
-  ws[address] = {
-    t: typeof value === 'number' ? 'n' : 's',
-    v: value ?? ''
-  };
-  if (style) ws[address].s = JSON.parse(JSON.stringify(style));
-}
-
-function clearCellValue(ws, address) {
-  if (!ws[address]) return;
-  const style = ws[address].s;
-  ws[address] = { t: 's', v: '' };
-  if (style) ws[address].s = style;
-}
-
-function insertColumn(ws, colIndex) {
-  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
-  for (let r = range.s.r; r <= range.e.r; r++) {
-    for (let c = range.e.c; c >= colIndex; c--) {
-      const from = XLSX.utils.encode_cell({ r, c });
-      const to = XLSX.utils.encode_cell({ r, c: c + 1 });
-      if (ws[from]) {
-        ws[to] = ws[from];
-        delete ws[from];
-      } else {
-        delete ws[to];
-      }
-    }
-  }
-  range.e.c += 1;
-  ws['!ref'] = XLSX.utils.encode_range(range);
-  ws['!cols'] = ws['!cols'] || [];
-  const sourceCol = ws['!cols'][colIndex] || ws['!cols'][colIndex - 1] || { wch: 10 };
-  ws['!cols'].splice(colIndex, 0, JSON.parse(JSON.stringify(sourceCol)));
-  if (ws['!merges']) {
-    ws['!merges'].forEach((merge) => {
-      if (merge.s.c >= colIndex) {
-        merge.s.c += 1;
-        merge.e.c += 1;
-      } else if (merge.e.c >= colIndex) {
-        merge.e.c += 1;
-      }
-    });
-  }
-}
-
-function templateHasSbdColumn(ws) {
-  return normalizeText(ws.B11?.v).includes('SBD');
-}
-
-function findFooterRow(ws) {
-  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:H30');
-  for (let r = 12; r <= range.e.r; r++) {
-    for (let c = 0; c <= Math.min(range.e.c, 5); c++) {
-      const value = normalizeText(ws[XLSX.utils.encode_cell({ r, c })]?.v);
-      if (value.includes('CB RAP PHACH') || value.includes('CAN BO CHAM THI')) {
-        return r + 1;
-      }
-    }
-  }
-  return 21;
-}
-
-function captureRow(ws, excelRow, lastColIndex) {
-  const cells = [];
-  for (let c = 0; c <= lastColIndex; c++) {
-    const address = XLSX.utils.encode_cell({ r: excelRow - 1, c });
-    cells[c] = ws[address] ? JSON.parse(JSON.stringify(ws[address])) : null;
-  }
-  return {
-    cells,
-    rowInfo: ws['!rows']?.[excelRow - 1] ? JSON.parse(JSON.stringify(ws['!rows'][excelRow - 1])) : null
-  };
-}
-
-function restoreRow(ws, snapshot, excelRow, lastColIndex) {
-  for (let c = 0; c <= lastColIndex; c++) {
-    const address = XLSX.utils.encode_cell({ r: excelRow - 1, c });
-    if (snapshot.cells[c]) {
-      ws[address] = JSON.parse(JSON.stringify(snapshot.cells[c]));
-    } else {
-      delete ws[address];
-    }
-  }
-  if (snapshot.rowInfo) {
-    ws['!rows'] = ws['!rows'] || [];
-    ws['!rows'][excelRow - 1] = JSON.parse(JSON.stringify(snapshot.rowInfo));
-  }
-}
-
-function clearRows(ws, fromExcelRow, toExcelRow, lastColIndex) {
-  for (let r = fromExcelRow; r <= toExcelRow; r++) {
-    for (let c = 0; c <= lastColIndex; c++) {
-      clearCellValue(ws, XLSX.utils.encode_cell({ r: r - 1, c }));
-    }
-  }
-}
-
-function rebuildFooterMerges(ws, oldFooterRow, newFooterRow, kind) {
-  const oldRows = new Set([oldFooterRow - 1, oldFooterRow]);
-  ws['!merges'] = (ws['!merges'] || []).filter((merge) => !oldRows.has(merge.s.r));
-  if (kind === 'office') {
-    ws['!merges'].push(XLSX.utils.decode_range(`F${newFooterRow}:I${newFooterRow}`));
-    ws['!merges'].push(XLSX.utils.decode_range(`F${newFooterRow + 1}:I${newFooterRow + 1}`));
-  } else {
-    ws['!merges'].push(XLSX.utils.decode_range(`D${newFooterRow}:H${newFooterRow}`));
-    ws['!merges'].push(XLSX.utils.decode_range(`D${newFooterRow + 1}:H${newFooterRow + 1}`));
-  }
-}
-
-function fillTemplateWorkbook(kind, templateWorkbook) {
-  const wb = cloneWorkbook(templateWorkbook);
-  const { sheetName, ws } = firstWorksheet(wb);
-  const isOffice = kind === 'office';
-
-  if (isOffice && !templateHasSbdColumn(ws)) {
-    insertColumn(ws, 1);
-  }
-
-  const meta = collectMeta();
-  const hocKy = document.getElementById('hoc-ky').value.trim() || '2';
-  const namHoc = document.getElementById('nam-hoc').value.trim() || '2025-2026';
-  const signDate = formatSignDate();
-  const lastColIndex = isOffice ? 8 : 7;
-  const lastCol = isOffice ? 'I' : 'H';
-  const dataStartRow = 13;
-  const oldFooterRow = findFooterRow(ws);
-  const newFooterRow = dataStartRow + state.merged.length + 1;
-  const footerSnapshots = [
-    captureRow(ws, oldFooterRow, lastColIndex),
-    captureRow(ws, oldFooterRow + 1, lastColIndex)
-  ];
-
-  clearRows(ws, dataStartRow, Math.max(oldFooterRow - 2, newFooterRow - 2), lastColIndex);
-
-  if (oldFooterRow !== newFooterRow) {
-    restoreRow(ws, footerSnapshots[0], newFooterRow, lastColIndex);
-    restoreRow(ws, footerSnapshots[1], newFooterRow + 1, lastColIndex);
-    clearRows(ws, oldFooterRow, oldFooterRow + 1, lastColIndex);
-    rebuildFooterMerges(ws, oldFooterRow, newFooterRow, kind);
-  }
-
-  setCellValue(ws, 'A6', `Học kỳ: ${hocKy} ; Năm học: ${namHoc}`);
-  setCellValue(ws, isOffice ? 'D7' : 'C7', `Hình thức thi: ${meta['Hình thức thi'] || ''}`);
-  setCellValue(ws, 'A8', `Tên học phần: ${meta['Tên học phần'] || ''}`);
-  setCellValue(ws, 'A9', `Mã học phần: ${meta['Mã học phần'] || ''}`);
-  setCellValue(ws, isOffice ? 'E9' : 'D9', `Ngày thi: ${meta['Ngày thi'] || ''}`);
-  setCellValue(ws, 'A10', `Phòng thi: ${meta['Phòng thi'] || ''}`);
-  setCellValue(ws, isOffice ? 'E10' : 'D10', `Hệ: ${meta['Hệ'] || ''}`);
-
-  if (isOffice) {
-    ['Stt', 'SBD', 'Mã SV', 'Họ tên sinh viên', 'Mã lớp', 'Mã phách', 'Điểm'].forEach((value, index) => {
-      setCellValue(ws, XLSX.utils.encode_cell({ r: 10, c: index }), value, XLSX.utils.encode_cell({ r: 10, c: Math.min(index + 1, lastColIndex) }));
-    });
-  } else {
-    ['Stt', 'Mã SV', 'Họ tên sinh viên', 'Mã lớp', 'Mã phách', 'Điểm'].forEach((value, index) => {
-      setCellValue(ws, XLSX.utils.encode_cell({ r: 10, c: index }), value);
-    });
-  }
-
-  state.merged.forEach((item, index) => {
-    const r = dataStartRow + index;
-    const values = isOffice
-      ? [item.stt, item.sbd, item.maSv, item.hoTen, item.maLop, item.phach, item.diem]
-      : [item.stt, item.maSv, item.hoTen, item.maLop, item.phach, item.diem];
-    values.forEach((value, c) => setCellValue(ws, XLSX.utils.encode_cell({ r: r - 1, c }), value, XLSX.utils.encode_cell({ r: dataStartRow - 1, c })));
-  });
-
-  if (isOffice) {
-    setCellValue(ws, `A${newFooterRow}`, document.getElementById('rap1').value.trim() || 'CB ráp phách 1');
-    setCellValue(ws, `D${newFooterRow}`, document.getElementById('rap2').value.trim() || 'CB ráp phách 2');
-    setCellValue(ws, `F${newFooterRow}`, signDate);
-    setCellValue(ws, `A${newFooterRow + 1}`, '(Ký, ghi rõ họ tên)');
-    setCellValue(ws, `D${newFooterRow + 1}`, '(Ký, ghi rõ họ tên)');
-    setCellValue(ws, `F${newFooterRow + 1}`, 'Lãnh đạo P. KTBĐCLGD');
-  } else {
-    setCellValue(ws, `A${newFooterRow}`, document.getElementById('cham1').value.trim() || 'Cán bộ chấm thi 1');
-    setCellValue(ws, `C${newFooterRow}`, document.getElementById('cham2').value.trim() || 'Cán bộ chấm thi 2');
-    setCellValue(ws, `D${newFooterRow}`, signDate);
-    setCellValue(ws, `A${newFooterRow + 1}`, '(Ký, ghi rõ họ tên)');
-    setCellValue(ws, `C${newFooterRow + 1}`, '(Ký, ghi rõ họ tên)');
-    setCellValue(ws, `D${newFooterRow + 1}`, document.getElementById('don-vi-ky').value.trim() || 'Trưởng Khoa/ Bộ môn');
-  }
-
-  const range = XLSX.utils.decode_range(ws['!ref'] || `A1:${lastCol}${newFooterRow + 1}`);
-  range.e.c = Math.max(range.e.c, lastColIndex);
-  range.e.r = Math.max(range.e.r, newFooterRow);
-  ws['!ref'] = XLSX.utils.encode_range(range);
-  applyRequiredTypography(ws, {
-    kind,
-    lastCol,
-    headerRow: 11,
-    firstDataRow: dataStartRow,
-    lastDataRow: dataStartRow + state.merged.length - 1,
-    footerExcelRow: newFooterRow
-  });
-  wb.SheetNames[0] = sheetName;
-  wb.Sheets[sheetName] = ws;
-  return wb;
-}
-
 function exportWorkbook(kind) {
   if (!state.merged.length) {
     setStatus('Chưa có dữ liệu ráp phách để xuất.', 'warn');
     return;
   }
-  const template = state.templates[kind];
-  const wb = template ? fillTemplateWorkbook(kind, template) : XLSX.utils.book_new();
-  if (!template) {
-    const ws = buildSheet(kind);
-    XLSX.utils.book_append_sheet(wb, ws, 'Bangdiemsaurapphach');
-  }
+  const wb = XLSX.utils.book_new();
+  const ws = buildSheet(kind);
+  XLSX.utils.book_append_sheet(wb, ws, 'Bangdiemsaurapphach');
   const fileName = kind === 'office'
     ? '4. Rapphach_PhongKTBDCLGD.xlsx'
     : '5. Bangdiemsaurapphach.xlsx';
@@ -1497,20 +1235,14 @@ function resetAll() {
   state.roster = null;
   state.mapping = null;
   state.scores = null;
-  state.templates.office = null;
-  state.templates.score = null;
   state.merged = [];
   els.rosterFile.value = '';
   els.mappingFile.value = '';
   els.scoresFile.value = '';
-  els.templateOfficeFile.value = '';
-  els.templateScoreFile.value = '';
   els.mappingText.value = '';
   els.rosterMeta.textContent = 'Chưa nạp file.';
   els.mappingMeta.textContent = 'Chưa nạp file. Hỗ trợ Excel hoặc Word `.docx`; file `.doc` nên lưu lại thành `.docx` nếu trình duyệt không đọc được.';
   els.scoresMeta.textContent = 'Chưa nạp file.';
-  els.templateOfficeMeta.textContent = 'Tùy chọn. Nếu không nạp file mẫu, ứng dụng vẫn xuất theo format chuẩn đã thiết lập.';
-  els.templateScoreMeta.textContent = 'Tùy chọn. Nếu không nạp file mẫu, ứng dụng vẫn xuất theo format chuẩn đã thiết lập.';
   els.mappingReadText.textContent = 'Chưa đọc bảng đối chiếu.';
   setStatus('Đã làm mới toàn bộ dữ liệu.', 'ok');
   updateUi();
